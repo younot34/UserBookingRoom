@@ -678,6 +678,7 @@ class _RoomDetailPageState extends State<RoomDetailPage> {
             const SizedBox(height: 15),
             TextField(
               controller: TextEditingController(text: userName),
+              readOnly: true,
               decoration: const InputDecoration(
                 border: OutlineInputBorder(),
                 labelText: "Host Name",

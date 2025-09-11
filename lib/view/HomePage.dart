@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import '../models/booking.dart';
@@ -368,6 +369,10 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildBookingList() {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    final currentEmail = currentUser?.email ?? "";
+    final currentName = currentEmail.split('@').first;
+
     Map<String, List<Booking>> grouped = {};
     for (var b in bookings) {
       grouped.putIfAbsent(b.date, () => []).add(b);
@@ -413,8 +418,10 @@ class _HomePageState extends State<HomePage> {
               ),
             ),
             ...list.map((b) {
+              final isMyBooking = (b.hostName.toLowerCase() == currentName.toLowerCase());
               return
                 Card(
+                  color: isMyBooking ? Colors.yellow.shade200 : Colors.white,
                   margin: const EdgeInsets.symmetric(vertical: 4),
                   elevation: 2,
                   shape: RoundedRectangleBorder(
@@ -446,11 +453,6 @@ class _HomePageState extends State<HomePage> {
                               color: Colors.grey.shade700,
                             ),
                           ),
-                          // trailing: IconButton(
-                          //   icon: const Icon(Icons.edit, color: Colors.blueAccent),
-                          //   tooltip: "Edit Booking",
-                          //   onPressed: () => _editBooking(b),
-                          // ),
                         ),
                         if (b.equipment.isNotEmpty)
                           Padding(

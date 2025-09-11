@@ -40,6 +40,7 @@ class _ReportingPageState extends State<ReportingPage> {
   void _showProfileDialog() {
     final currentUser = _auth.currentUser;
     final TextEditingController newPasswordController = TextEditingController();
+    final TextEditingController confirmPasswordController = TextEditingController();
 
     showDialog(
       context: context,
@@ -61,31 +62,57 @@ class _ReportingPageState extends State<ReportingPage> {
                   border: OutlineInputBorder(),
                 ),
               ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: confirmPasswordController,
+                obscureText: true,
+                decoration: const InputDecoration(
+                  labelText: "Confirm Password",
+                  border: OutlineInputBorder(),
+                ),
+              ),
             ],
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text("Cancel"),
+              child: const Text(
+                  "Cancel",
+                style: TextStyle(color: Colors.black),
+              ),
             ),
             ElevatedButton(
               onPressed: () async {
-                if (newPasswordController.text.trim().isNotEmpty) {
-                  try {
-                    await currentUser?.updatePassword(newPasswordController.text.trim());
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text("✅ Password updated")),
-                    );
-                  } catch (e) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text("⚠️ Error: $e")),
-                    );
-                  }
+                final newPassword = newPasswordController.text.trim();
+                final confirmPassword = confirmPasswordController.text.trim();
+
+                if (newPassword.isEmpty || confirmPassword.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text("⚠️ Password fields cannot be empty")),
+                  );
+                  return;
+                }
+                if (newPassword != confirmPassword) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text("⚠️ Passwords do not match")),
+                  );
+                  return;
+                }
+
+                try {
+                  await currentUser?.updatePassword(newPassword);
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text("✅ Password updated")),
+                  );
+                } catch (e) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text("⚠️ Error: $e")),
+                  );
                 }
               },
               style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF168757)),
-              child: const Text("Update"),
+              child: const Text("Update", style: TextStyle(color: Colors.white),),
             ),
           ],
         );
@@ -105,9 +132,18 @@ class _ReportingPageState extends State<ReportingPage> {
         foregroundColor: Colors.white,
         elevation: 4,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.person),
-            onPressed: _showProfileDialog,
+          Row(
+            children: [
+              Text(
+                _auth.currentUser?.email ?? "",
+                style: const TextStyle(color: Colors.white, fontSize: 14),
+              ),
+              const SizedBox(width: 8),
+              IconButton(
+                icon: const Icon(Icons.person),
+                onPressed: _showProfileDialog,
+              ),
+            ],
           ),
         ],
       ),
