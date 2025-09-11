@@ -224,6 +224,7 @@ class _HomePageState extends State<HomePage> {
       final end = start.add(Duration(minutes: dur));
 
       if (now.isAfter(end)) {
+        await bookingService.moveToHistory(b);
         setState(() {
           bookings.remove(b);
         });

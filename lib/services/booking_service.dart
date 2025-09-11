@@ -77,23 +77,23 @@ class BookingService {
     }
   }
   /// Pindahkan booking ke history (misal setelah selesai)
-  // Future<void> moveToHistory(Booking booking) async {
-  //   final historyRef = _firestore.collection('history');
-  //   await historyRef.doc(booking.id).set({
-  //     "roomName": booking.roomName,
-  //     "date": booking.date,
-  //     "time": booking.time,
-  //     "duration": booking.duration,
-  //     "numberOfPeople": booking.numberOfPeople,
-  //     "equipment": booking.equipment,
-  //     "hostName": booking.hostName,
-  //     "meetingTitle": booking.meetingTitle,
-  //     "isScanEnabled": booking.isScanEnabled,
-  //     "scanInfo": booking.scanInfo,
-  //     "endedAt": FieldValue.serverTimestamp(),
-  //   });
-  //   await _bookingsRef.doc(booking.id).delete();
-  // }
+  Future<void> moveToHistory(Booking booking) async {
+    final historyRef = _firestore.collection('history');
+    await historyRef.doc(booking.id).set({
+      "roomName": booking.roomName,
+      "date": booking.date,
+      "time": booking.time,
+      "duration": booking.duration,
+      "numberOfPeople": booking.numberOfPeople,
+      "equipment": booking.equipment,
+      "hostName": booking.hostName,
+      "meetingTitle": booking.meetingTitle,
+      "isScanEnabled": booking.isScanEnabled,
+      "scanInfo": booking.scanInfo,
+      "endedAt": FieldValue.serverTimestamp(),
+    });
+    await _bookingsRef.doc(booking.id).delete();
+  }
 
   Future<Booking> updateBooking(Booking booking) async {
     await FirebaseFirestore.instance
