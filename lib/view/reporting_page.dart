@@ -1,8 +1,7 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-
 import '../models/device.dart';
 import '../services/device_service.dart';
+import '../services/auth_service.dart';
 import 'HomePage.dart';
 
 class ReportingPage extends StatefulWidget {
@@ -13,8 +12,7 @@ class ReportingPage extends StatefulWidget {
 }
 
 class _ReportingPageState extends State<ReportingPage> {
-  final DeviceFirestoreService deviceService = DeviceFirestoreService();
-  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final DeviceService deviceService = DeviceService();
   List<Device> devices = [];
   List<String> allRooms = [];
 
@@ -37,8 +35,9 @@ class _ReportingPageState extends State<ReportingPage> {
       allRooms = devices.map((d) => d.roomName).toList();
     });
   }
+
   void _showProfileDialog() {
-    final currentUser = _auth.currentUser;
+    final currentUser = AuthService.currentUser;
     final TextEditingController newPasswordController = TextEditingController();
     final TextEditingController confirmPasswordController = TextEditingController();
 
@@ -76,10 +75,7 @@ class _ReportingPageState extends State<ReportingPage> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text(
-                  "Cancel",
-                style: TextStyle(color: Colors.black),
-              ),
+              child: const Text("Cancel", style: TextStyle(color: Colors.black)),
             ),
             ElevatedButton(
               onPressed: () async {
@@ -100,11 +96,17 @@ class _ReportingPageState extends State<ReportingPage> {
                 }
 
                 try {
-                  await currentUser?.updatePassword(newPassword);
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("✅ Password updated")),
-                  );
+                  final success = await AuthService.updatePassword(newPassword);
+                  if (success) {
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text("✅ Password updated")),
+                    );
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text("⚠️ Failed to update password")),
+                    );
+                  }
                 } catch (e) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(content: Text("⚠️ Error: $e")),
@@ -112,7 +114,7 @@ class _ReportingPageState extends State<ReportingPage> {
                 }
               },
               style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF168757)),
-              child: const Text("Update", style: TextStyle(color: Colors.white),),
+              child: const Text("Update", style: TextStyle(color: Colors.white)),
             ),
           ],
         );
@@ -122,6 +124,8 @@ class _ReportingPageState extends State<ReportingPage> {
 
   @override
   Widget build(BuildContext context) {
+    final currentUser = AuthService.currentUser;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text(
@@ -135,7 +139,7 @@ class _ReportingPageState extends State<ReportingPage> {
           Row(
             children: [
               Text(
-                _auth.currentUser?.email ?? "",
+                currentUser?.email ?? "",
                 style: const TextStyle(color: Colors.white, fontSize: 14),
               ),
               const SizedBox(width: 8),
@@ -159,16 +163,14 @@ class _ReportingPageState extends State<ReportingPage> {
             margin: const EdgeInsets.symmetric(vertical: 6),
             elevation: 2,
             child: ListTile(
-              contentPadding:
-              const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               leading: const CircleAvatar(
                 backgroundColor: Color(0xFF168757),
                 child: Icon(Icons.meeting_room, color: Colors.white),
               ),
               title: Text(
                 room,
-                style:
-                const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
               ),
               trailing: const Icon(Icons.arrow_forward_ios, size: 16),
               onTap: () {

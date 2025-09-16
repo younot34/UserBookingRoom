@@ -1,4 +1,3 @@
-import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -7,21 +6,9 @@ import 'package:user/auth/login.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   if (kIsWeb) {
-    // 🔹 konfigurasi Firebase Web
-    await Firebase.initializeApp(
-      options:
-      const FirebaseOptions(
-        apiKey: "AIzaSyDBM3JRHlreKsFsYJQtgRtL4KZv2xbh5lk",
-        authDomain: "meet-d8070.firebaseapp.com",
-        projectId: "meet-d8070",
-        storageBucket: "meet-d8070.appspot.com",
-        messagingSenderId: "708303731331",
-        appId: "1:708303731331:web:b619717cbe421f6013f9b6",
-        measurementId: "G-HGW2PK6JG3",
-      ),
-    );
+    debugPrint("Running on Web, backend Laravel API aktif");
   } else {
-    await Firebase.initializeApp();
+    debugPrint("Running on Mobile, backend Laravel API aktif");
   }
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
   runApp(const MyApp());

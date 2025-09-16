@@ -1,15 +1,13 @@
 import 'dart:async';
 import 'dart:io';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import '../models/booking.dart';
+import '../services/auth_service.dart';
 import '../services/booking_service.dart';
 import '../services/device_service.dart';
-import 'package:intl/intl.dart';
-
 import 'RoomDetail.dart';
+import 'package:intl/intl.dart';
 import 'ScanPage.dart';
 
 class HomePage extends StatefulWidget {
@@ -34,8 +32,8 @@ class _HomePageState extends State<HomePage> {
   Timer? _tapResetTimer;
   final BookingService bookingService = BookingService();
   String deviceLocation = "Loading...";
-  final DeviceFirestoreService deviceService = DeviceFirestoreService();
   Map<String, String> roomLocations = {};
+  late String currentUserName;
 
   Route<T> _noAnimationRoute<T>(Widget page) {
     return PageRouteBuilder<T>(
@@ -47,16 +45,7 @@ class _HomePageState extends State<HomePage> {
 
   bool get isMeetNowAllowed {
     for (var b in bookings) {
-      final parts = b.time.split(':');
-      final hour = int.parse(parts[0]);
-      final minute = int.parse(parts[1]);
-      final start = DateTime(
-        int.parse(b.date.split('/')[2]),
-        int.parse(b.date.split('/')[1]),
-        int.parse(b.date.split('/')[0]),
-        hour,
-        minute,
-      );
+      final start = parseBookingDateTimeSafe(b.date, b.time);
       final diff = start.difference(_currentTime).inMinutes;
       if (diff > 0 && diff < 35) {
         return false;
@@ -71,6 +60,9 @@ class _HomePageState extends State<HomePage> {
     _listenBookings();
     _fetchDeviceLocation();
     _fetchDeviceLocationByRoom(widget.roomName);
+    setState(() {
+      currentUserName = AuthService.currentUser?.name ?? "";
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _updateLeftCardHeight();
     });
@@ -85,17 +77,10 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _fetchDeviceLocationByRoom(String roomName) async {
-    final snapshot = await FirebaseFirestore.instance
-        .collection('devices')
-        .where('roomName', isEqualTo: roomName)
-        .limit(1)
-        .get();
-
-    if (snapshot.docs.isNotEmpty) {
-      final data = snapshot.docs.first.data();
-      final location = data['location'] as String?;
+    try {
+      final location = await DeviceService().getLocation(roomName);
       setState(() {
-        deviceLocation = location ?? 'Unknown';
+        deviceLocation = location;
         // update lokasi di semua booking yang sesuai
         for (var b in bookings) {
           if (b.roomName == roomName) {
@@ -103,7 +88,7 @@ class _HomePageState extends State<HomePage> {
           }
         }
       });
-    } else {
+    } catch (e) {
       setState(() {
         deviceLocation = 'Unknown';
       });
@@ -126,7 +111,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _fetchDeviceLocation() async {
-    final location = await deviceService.getLocation(widget.roomName);
+    final location = await DeviceService().getLocation(widget.roomName);
     setState(() {
       deviceLocation = location;
     });
@@ -151,7 +136,7 @@ class _HomePageState extends State<HomePage> {
       setState(() {
         final index = bookings.indexWhere((b) => b.id == updated.id);
         if (index != -1) {
-          bookings[index] = updated; // replace booking lama
+          bookings[index] = updated;
         }
       });
       Fluttertoast.showToast(msg: "Booking updated");
@@ -167,38 +152,53 @@ class _HomePageState extends State<HomePage> {
       });
     }
   }
+  DateTime parseBookingDateTimeSafe(String date, String time) {
+    int year = 2000, month = 1, day = 1, hour = 0, minute = 0;
+    date = date.split('T')[0];
+    date = date.replaceAll(RegExp(r'[^0-9\-\/]'), '');
+
+    // Parse date
+    try {
+      if (date.contains('/')) {
+        final parts = date.split('/');
+        day = int.tryParse(parts[0]) ?? 1;
+        month = int.tryParse(parts[1]) ?? 1;
+        year = int.tryParse(parts[2]) ?? 2000;
+      } else if (date.contains('-')) {
+        final parts = date.split('-');
+        year = int.tryParse(parts[0]) ?? 2000;
+        month = int.tryParse(parts[1]) ?? 1;
+        day = int.tryParse(parts[2]) ?? 1;
+      }
+    } catch (_) {}
+
+    // Parse time
+    try {
+      final timeParts = time.split(':');
+      hour = int.tryParse(timeParts[0]) ?? 0;
+      minute = timeParts.length > 1 ? int.tryParse(timeParts[1]) ?? 0 : 0;
+    } catch (_) {}
+
+    return DateTime(year, month, day, hour, minute);
+  }
 
   String formatBookingTime(String startTime, String date, String? duration) {
-    final parts = startTime.split(':');
-    final hour = int.parse(parts[0]);
-    final minute = int.parse(parts[1]);
-    final start = DateTime(
-      int.parse(date.split('/')[2]),
-      int.parse(date.split('/')[1]),
-      int.parse(date.split('/')[0]),
-      hour,
-      minute,
-    );
+    final start = parseBookingDateTimeSafe(date, startTime);
     final dur = int.tryParse(duration ?? '30') ?? 30;
     final end = start.add(Duration(minutes: dur));
-
     final formatter = DateFormat("HH:mm");
     return "${formatter.format(start)}-${formatter.format(end)} | ${dur}m";
+  }
+
+  String formatBookingDate(String isoDate) {
+    final dt = DateTime.parse(isoDate);
+    return DateFormat("yyyy-MM-dd").format(dt);
   }
 
   void _updateAvailability() {
     isAvailable = true;
     for (var b in bookings) {
-      final parts = b.time.split(':');
-      final hour = int.parse(parts[0]);
-      final minute = int.parse(parts[1]);
-      final start = DateTime(
-        int.parse(b.date.split('/')[2]),
-        int.parse(b.date.split('/')[1]),
-        int.parse(b.date.split('/')[0]),
-        hour,
-        minute,
-      );
+      final start = parseBookingDateTimeSafe(b.date, b.time);
       final dur = int.tryParse(b.duration ?? '30') ?? 30;
       final end = start.add(Duration(minutes: dur));
       if (_currentTime.isAfter(start) && _currentTime.isBefore(end)) {
@@ -211,41 +211,33 @@ class _HomePageState extends State<HomePage> {
   void _updateBookingStatus() async {
     final now = DateTime.now();
 
-    for (var b in List<Booking>.from(bookings)) { // copy biar aman saat remove
-      final parts = b.time.split(':');
-      final start = DateTime(
-        int.parse(b.date.split('/')[2]),
-        int.parse(b.date.split('/')[1]),
-        int.parse(b.date.split('/')[0]),
-        int.parse(parts[0]),
-        int.parse(parts[1]),
-      );
+    for (var b in List<Booking>.from(bookings)) {
+      final start = parseBookingDateTimeSafe(b.date, b.time);
       final dur = int.tryParse(b.duration ?? '30') ?? 30;
       final end = start.add(Duration(minutes: dur));
 
       if (now.isAfter(end)) {
-        await bookingService.moveToHistory(b);
-        setState(() {
-          bookings.remove(b);
-        });
+        try {
+          await bookingService.endBooking(int.parse(b.id));
+          setState(() {
+            bookings.remove(b);
+          });
+          Fluttertoast.showToast(
+            msg: "Booking '${b.meetingTitle}' selesai dan dipindahkan ke history",
+          );
+        } catch (e) {
+          print("Gagal memindahkan booking ${b.id} ke history: $e");
+        }
       }
     }
   }
 
   Booking? get currentMeeting {
     for (var b in bookings) {
-      final parts = b.time.split(':');
-      final hour = int.parse(parts[0]);
-      final minute = int.parse(parts[1]);
-      final start = DateTime(
-        int.parse(b.date.split('/')[2]),
-        int.parse(b.date.split('/')[1]),
-        int.parse(b.date.split('/')[0]),
-        hour,
-        minute,
-      );
+      final start = parseBookingDateTimeSafe(b.date, b.time);
       final dur = int.tryParse(b.duration ?? '30') ?? 30;
       final end = start.add(Duration(minutes: dur));
+
       if (_currentTime.isAfter(start) && _currentTime.isBefore(end)) {
         return b;
       }
@@ -272,7 +264,7 @@ class _HomePageState extends State<HomePage> {
     );
 
     if (result != null) {
-      final saved = await bookingService.saveBooking(result);
+      final saved = await BookingService().saveBooking(result);
       setState(() {
         bookings.add(saved);
         isScanEnabled = saved.isScanEnabled;
@@ -344,7 +336,7 @@ class _HomePageState extends State<HomePage> {
           TextButton.icon(
             icon: const Icon(Icons.qr_code_scanner, color: Colors.white),
             label: const Text("Scan Me", style: TextStyle(color: Colors.white)),
-            onPressed: (currentMeeting?.isScanEnabled ?? false)
+            onPressed: (isScanEnabled && currentMeeting != null)
                 ? () {
               Navigator.push(
                 context,
@@ -352,7 +344,8 @@ class _HomePageState extends State<HomePage> {
                   builder: (_) => ScanPage(booking: currentMeeting!),
                 ),
               );
-            } : null,
+            }
+                : null,
           ),
         ],
       ),
@@ -370,10 +363,6 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildBookingList() {
-    final currentUser = FirebaseAuth.instance.currentUser;
-    final currentEmail = currentUser?.email ?? "";
-    final currentName = currentEmail.split('@').first;
-
     Map<String, List<Booking>> grouped = {};
     for (var b in bookings) {
       grouped.putIfAbsent(b.date, () => []).add(b);
@@ -381,17 +370,15 @@ class _HomePageState extends State<HomePage> {
 
     final sortedKeys = grouped.keys.toList()
       ..sort((a, b) {
-        final da = DateFormat("dd/MM/yyyy").parse(a);
-        final db = DateFormat("dd/MM/yyyy").parse(b);
+        final da = DateFormat("yyyy-MM-dd").parse(a);
+        final db = DateFormat("yyyy-MM-dd").parse(b);
         return da.compareTo(db);
       });
 
     for (var key in grouped.keys) {
       grouped[key]!.sort((a, b) {
-        final aDate = DateFormat("dd/MM/yyyy HH:mm")
-            .parse("${a.date} ${a.time}");
-        final bDate = DateFormat("dd/MM/yyyy HH:mm")
-            .parse("${b.date} ${b.time}");
+        final aDate = parseBookingDateTimeSafe(a.date, a.time);
+        final bDate = parseBookingDateTimeSafe(b.date, b.time);
         return aDate.compareTo(bDate);
       });
     }
@@ -409,9 +396,10 @@ class _HomePageState extends State<HomePage> {
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 12),
               child: Text(
-                DateFormat("EEEE, dd MMM yyyy")
-                    .format(DateFormat("dd/MM/yyyy").parse(dateKey)),
-                style: const TextStyle(
+                DateFormat("EEEE, dd MMM yyyy").format(
+                    parseBookingDateTimeSafe(dateKey, "00:00")
+                ),
+        style: const TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
                   color: Color(0xFF168757),
@@ -419,10 +407,12 @@ class _HomePageState extends State<HomePage> {
               ),
             ),
             ...list.map((b) {
-              final isMyBooking = (b.hostName.toLowerCase() == currentName.toLowerCase());
+              final cardColor = (b.hostName == currentUserName)
+                  ? Colors.yellow.shade100
+                  : Colors.white;
               return
                 Card(
-                  color: isMyBooking ? Colors.yellow.shade200 : Colors.white,
+                  color: cardColor,
                   margin: const EdgeInsets.symmetric(vertical: 4),
                   elevation: 2,
                   shape: RoundedRectangleBorder(
@@ -454,6 +444,11 @@ class _HomePageState extends State<HomePage> {
                               color: Colors.grey.shade700,
                             ),
                           ),
+                          // trailing: IconButton(
+                          //   icon: const Icon(Icons.edit, color: Colors.blueAccent),
+                          //   tooltip: "Edit Booking",
+                          //   onPressed: () => _editBooking(b),
+                          // ),
                         ),
                         if (b.equipment.isNotEmpty)
                           Padding(

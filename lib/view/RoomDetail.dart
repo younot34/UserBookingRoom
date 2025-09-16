@@ -1,9 +1,12 @@
-import 'package:firebase_auth/firebase_auth.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
 import 'package:table_calendar/table_calendar.dart';
+import '../config/api_config.dart';
 import '../models/booking.dart';
+import '../services/auth_service.dart';
 import 'BookingConfirm.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:intl/intl.dart';
 
 
 class RoomDetailPage extends StatefulWidget {
@@ -94,25 +97,29 @@ class _RoomDetailPageState extends State<RoomDetailPage> {
   void previousPage() {
     if (timePage > 0) setState(() => timePage--);
   }
+  Future<void> _loadCurrentUser() async {
+    final response = await http.get(
+      Uri.parse("${ApiConfig.baseUrl}/user"),
+      headers: ApiConfig.headers, // berisi token Bearer
+    );
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      setState(() {
+        userName = data['name'] ?? data['email']?.split('@').first;
+      });
+    }
+  }
   @override
   void initState() {
     super.initState();
     hours = List.generate(24, (i) => i.toString().padLeft(2, '0'));
     minutes = List.generate(60, (i) => i.toString().padLeft(2, '0'));
+    userName = AuthService.currentUser?.name ?? "";
     if (widget.isMeetNow && widget.meetNowDate != null) {
       selectedDate = widget.meetNowDate!;
       selectedHour = selectedDate.hour.toString().padLeft(2, '0');
       selectedMinute = selectedDate.minute.toString().padLeft(2, '0');
       selectedTime = "$selectedHour:$selectedMinute";
-    }
-    final currentUser = FirebaseAuth.instance.currentUser;
-    if (currentUser != null && currentUser.email != null) {
-      final email = currentUser.email!;
-      // ambil sebelum @
-      final host = email.split('@').first;
-      setState(() {
-        userName = host;
-      });
     }
     WidgetsBinding.instance.addPostFrameCallback((_) => _getCalendarHeight());
     _loadDeviceData();
@@ -222,18 +229,19 @@ class _RoomDetailPageState extends State<RoomDetailPage> {
     return available;
   }
   Future<void> _loadDeviceData() async {
-    final snapshot = await FirebaseFirestore.instance
-        .collection('devices')
-        .where('roomName', isEqualTo: widget.roomName)
-        .limit(1)
-        .get();
-
-    if (snapshot.docs.isNotEmpty) {
-      final data = snapshot.docs.first.data();
-      setState(() {
-        capacity = data['capacity'];
-        equipment = List<String>.from(data['equipment'] ?? []);
-      });
+    final response = await http.get(
+      Uri.parse("${ApiConfig.baseUrl}/devices?room_name=${widget.roomName}"),
+      headers: ApiConfig.headers,
+    );
+    if (response.statusCode == 200) {
+      final List data = jsonDecode(response.body);
+      if (data.isNotEmpty) {
+        final device = data.first;
+        setState(() {
+          capacity = device['capacity'] ?? 0;
+          equipment = List<String>.from(device['equipment'] ?? []);
+        });
+      }
     }
   }
   Future<String?> _showScanInfoDialog() async {
@@ -724,19 +732,21 @@ class _RoomDetailPageState extends State<RoomDetailPage> {
         ),
         onPressed: isFormComplete
             ? () async {
+          final formattedDate = DateFormat('yyyy-MM-dd').format(selectedDate);
           final booking = Booking(
             id: widget.bookingToEdit?.id ?? "", // kalau edit, pakai id lama
             roomName: widget.roomName,
-            date:
-            "${selectedDate.day}/${selectedDate.month}/${selectedDate.year}",
+            date: formattedDate,
             time: "$selectedHour:$selectedMinute",
-            duration: selectedDuration,
-            numberOfPeople: numberOfPeople,
+            duration: selectedDuration!,
+            numberOfPeople: numberOfPeople!,
             equipment: selectedEquipment,
             hostName: userName ?? "",
             meetingTitle: editableTitle,
             isScanEnabled: isScanEnabled,
             scanInfo: scanInfo,
+            status: "In Queue",
+            location: "Default Location",
           );
 
           if (widget.bookingToEdit != null) {
