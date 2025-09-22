@@ -82,6 +82,7 @@ class _HomePageState extends State<HomePage> {
       setState(() {
         deviceLocation = location;
         // update lokasi di semua booking yang sesuai
+        roomLocations[roomName] = location;
         for (var b in bookings) {
           if (b.roomName == roomName) {
             b.location = deviceLocation;

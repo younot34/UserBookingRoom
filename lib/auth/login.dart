@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:user/view/reporting_page.dart';
 
 import '../services/auth_service.dart';
+import 'ForgotPasswordPage.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -112,6 +113,15 @@ class _LoginPageState extends State<LoginPage> {
                           ),
                         ),
                       ),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const ForgotPasswordPage()),
+                        );
+                      },
+                      child: const Text("Lupa Password?"),
                     ),
                   ],
                 ),
