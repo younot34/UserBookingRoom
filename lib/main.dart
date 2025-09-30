@@ -33,35 +33,41 @@ class _MyAppState extends State<MyApp> {
 
   void _initDeepLinkHandler() {
     if (kIsWeb) {
-      // --- Web: ambil token/email dari Uri.base
       WidgetsBinding.instance.addPostFrameCallback((_) {
         final uri = Uri.base;
+        debugPrint("WEB DeepLink: $uri");
         if (uri.path == '/reset-password') {
           final token = uri.queryParameters['token'] ?? '';
           final email = uri.queryParameters['email'] ?? '';
           if (token.isNotEmpty && email.isNotEmpty) {
-            Navigator.push(
-              navigatorKey.currentContext!,
-              MaterialPageRoute(
-                builder: (_) => ResetPasswordPage(email: email, token: token),
-              ),
-            );
+            final ctx = navigatorKey.currentContext;
+            if (ctx != null) {
+              Navigator.push(
+                ctx,
+                MaterialPageRoute(
+                  builder: (_) => ResetPasswordPage(email: email, token: token),
+                ),
+              );
+            }
           }
         }
       });
     } else {
-      // --- Mobile: pakai uni_links
       _sub = uriLinkStream.listen((Uri? uri) {
+        debugPrint("MOBILE DeepLink: $uri");
         if (uri != null && uri.path == '/reset-password') {
           final token = uri.queryParameters['token'] ?? '';
           final email = uri.queryParameters['email'] ?? '';
           if (token.isNotEmpty && email.isNotEmpty) {
-            Navigator.push(
-              navigatorKey.currentContext!,
-              MaterialPageRoute(
-                builder: (_) => ResetPasswordPage(email: email, token: token),
-              ),
-            );
+            final ctx = navigatorKey.currentContext;
+            if (ctx != null) {
+              Navigator.push(
+                ctx,
+                MaterialPageRoute(
+                  builder: (_) => ResetPasswordPage(email: email, token: token),
+                ),
+              );
+            }
           }
         }
       }, onError: (err) {
@@ -79,14 +85,27 @@ class _MyAppState extends State<MyApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      debugShowCheckedModeBanner: false,
       navigatorKey: navigatorKey,
+      debugShowCheckedModeBanner: false,
       title: 'Booking App',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.green),
         useMaterial3: true,
       ),
-      home: const LoginPage(),
+      onGenerateRoute: (settings) {
+        final uri = Uri.parse(settings.name ?? '');
+
+        if (uri.path == '/reset-password') {
+          final token = uri.queryParameters['token'] ?? '';
+          final email = uri.queryParameters['email'] ?? '';
+          return MaterialPageRoute(
+            builder: (_) => ResetPasswordPage(email: email, token: token),
+          );
+        }
+
+        // default route → login
+        return MaterialPageRoute(builder: (_) => const LoginPage());
+      },
     );
   }
 }
